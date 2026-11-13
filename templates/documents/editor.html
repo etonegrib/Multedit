@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>{{ doc.title }} — Multedit</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; }
+        #left { flex: 1; display: flex; flex-direction: column; padding: 16px; box-sizing: border-box; }
+        #editor { flex: 1; font-family: monospace; font-size: 15px; padding: 12px; border: 1px solid #ccc; border-radius: 6px; resize: none; }
+        #right { width: 280px; border-left: 1px solid #ddd; display: flex; flex-direction: column; padding: 12px; box-sizing: border-box; }
+        #users { margin-bottom: 8px; font-size: 13px; color: #555; }
+        #chatLog { flex: 1; overflow-y: auto; border: 1px solid #eee; padding: 8px; font-size: 14px; margin-bottom: 8px; }
+        .msg { margin: 2px 0; }
+        .msg b { color: #2a6; }
+        #cursors { font-size: 13px; color: #a44; min-height: 18px; }
+    </style>
+</head>
+<body>
+<div id="left">
+    <h2>{{ doc.title }}</h2>
+    <div id="cursors"></div>
+    <textarea id="editor" placeholder="Печатайте здесь..."></textarea>
+    <p>
+        <button id="saveBtn">Сохранить</button>
+        <span id="status"></span>
+    </p>
+</div>
+<div id="right">
+    <div id="users">Участники: —</div>
+    <div id="chatLog"></div>
+    <input id="chatInput" placeholder="Сообщение + Enter">
+</div>
+
+<script>
+const docId = {{ doc.id }};
+const username = "user" + Math.floor(Math.random() * 1000);
+const scheme = location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${scheme}://${location.host}/ws/doc/${docId}/`);
+
+const editor = document.getElementById("editor");
+const cursors = document.getElementById("cursors");
+const usersEl = document.getElementById("users");
+const chatLog = document.getElementById("chatLog");
+const chatInput = document.getElementById("chatInput");
+const statusEl = document.getElementById("status");
+
+let suppress = false;
+const otherCursors = {};
+
+ws.onopen = () => ws.send(JSON.stringify({type: "join", username}));
+
+ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === "init") {
+        editor.value = m.content;
+    } else if (m.type === "edit") {
+        if (m.from_self) return;
+        const pos = editor.selectionStart;
+        suppress = true;
+        editor.value = m.content;
+        editor.selectionStart = editor.selectionEnd = Math.min(pos, editor.value.length);
+        suppress = false;
+    } else if (m.type === "users") {
+        usersEl.textContent = "Участники: " + (m.users.join(", ") || "—");
+    } else if (m.type === "cursor") {
+        otherCursors[m.username] = m.pos;
+        renderCursors();
+    } else if (m.type === "chat") {
+        const div = document.createElement("div");
+        div.className = "msg";
+        div.innerHTML = `<b>${m.username}</b>: ${escapeHtml(m.text)}`;
+        chatLog.appendChild(div);
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }
+};
+
+editor.addEventListener("input", () => {
+    if (suppress) return;
+    ws.send(JSON.stringify({type: "edit", content: editor.value}));
+    sendCursor();
+});
+
+editor.addEventListener("keyup", sendCursor);
+editor.addEventListener("click", sendCursor);
+
+function sendCursor() {
+    ws.send(JSON.stringify({type: "cursor", pos: editor.selectionStart}));
+}
+
+function renderCursors() {
+    cursors.textContent = Object.entries(otherCursors)
+        .map(([u, p]) => `${u} @ ${p}`).join("  |  ");
+}
+
+document.getElementById("saveBtn").onclick = () => {
+    ws.send(JSON.stringify({type: "save", content: editor.value}));
+    statusEl.textContent = "сохранено " + new Date().toLocaleTimeString();
+};
+
+chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && chatInput.value.trim()) {
+        ws.send(JSON.stringify({type: "chat", text: chatInput.value.trim()}));
+        chatInput.value = "";
+    }
+});
+
+function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+</script>
+</body>
+</html>

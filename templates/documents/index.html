@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Multedit — документы</title>
+    <style>body{font-family:sans-serif;max-width:720px;margin:40px auto}</style>
+</head>
+<body>
+    <h1>Документы</h1>
+    <p><a href="{% url 'create_doc' %}">+ Новый документ</a></p>
+    <ul>
+    {% for d in docs %}
+        <li>
+            <a href="{% url 'doc_view' d.id %}">{{ d.title }}</a>
+            <small>({{ d.updated_at|date:"H:i d.m.Y" }})</small>
+        </li>
+    {% empty %}
+        <li>Пока пусто. Создайте первый документ!</li>
+    {% endfor %}
+    </ul>
+</body>
+</html>
