@@ -89,13 +89,18 @@ USE_TZ = True
 
 # Static files
 
-STATIC_URL = 'static/'
+# ... (начало файла без изменений)
 
+# Static files
+STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# --- Media (Загрузка картинок) ---
+import os
+MEDIA_URL = "/media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # --- Channels / Redis ---
-
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
